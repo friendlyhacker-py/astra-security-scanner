@@ -1,0 +1,6 @@
+# Core dependency
+requests>=2.31.0,<3
+
+# Optional: only required for tools/cvedetails_browser_test.py
+# Install separately if you want to run the browser experiment:
+# cloakbrowser
