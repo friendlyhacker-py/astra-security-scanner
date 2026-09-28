@@ -1,3 +1,4 @@
+
 from astra_scan import scan_technology
 
 
@@ -22,48 +23,138 @@ TEST_TECHNOLOGIES = [
 def run_regression_test():
 
     print("\n")
-    print("=" * 70)
+    print("=" * 100)
     print("ASTRA REGRESSION TEST")
-    print("=" * 70)
+    print("=" * 100)
+
     print(f"Total technologies: {len(TEST_TECHNOLOGIES)}")
-    print("=" * 70)
+
+    print("=" * 100)
 
     results = []
 
     for index, technology in enumerate(TEST_TECHNOLOGIES, start=1):
 
         print("\n")
-        print("#" * 70)
+        print("#" * 100)
         print(f"TEST {index}/{len(TEST_TECHNOLOGIES)}")
         print(f"Technology: {technology}")
-        print("#" * 70)
+        print("#" * 100)
 
         try:
 
             result = scan_technology(technology)
 
+            # --------------------------------------------------
+            # SCAN RETURNED NOTHING
+            # --------------------------------------------------
+
             if result is None:
-                status = "FAILED"
-            else:
-                status = "SUCCESS"
 
                 results.append({
                     "technology": technology,
-                    "status": status,
-                    "cpe": result.get("cpe"),
-                    "cve_count": len(result.get("cves", []))
+                    "method": "UNKNOWN",
+                    "status": "FAILED",
+                    "cpe": None,
+                    "cve_count": 0,
+                    "affected": 0,
+                    "not_affected": 0,
+                    "unable": 0
+                })
+
+                continue
+
+            method = result.get("method", "UNKNOWN")
+            scan_status = result.get("status", "UNKNOWN")
+            cpe = result.get("cpe")
+            cves = result.get("cves", [])
+
+            # --------------------------------------------------
+            # NVD / VALIDATION ERROR
+            # --------------------------------------------------
+
+            if scan_status in ["ERROR", "NVD_ERROR"]:
+
+                results.append({
+                    "technology": technology,
+                    "method": method,
+                    "status": scan_status,
+                    "cpe": cpe,
+                    "cve_count": 0,
+                    "affected": 0,
+                    "not_affected": 0,
+                    "unable": 0
+                })
+
+                continue
+
+            # --------------------------------------------------
+            # PLAN A: CPE METHOD
+            # --------------------------------------------------
+
+            if method == "CPE":
+
+                results.append({
+                    "technology": technology,
+                    "method": "PLAN_A_CPE",
+                    "status": "SUCCESS",
+                    "cpe": cpe,
+                    "cve_count": len(cves),
+                    "affected": 0,
+                    "not_affected": 0,
+                    "unable": 0
+                })
+
+            # --------------------------------------------------
+            # PLAN B: KEYWORD + GEMINI
+            # --------------------------------------------------
+
+            elif method == "NVD_KEYWORD_GEMINI":
+
+                summary = result.get("summary", {})
+
+                affected = summary.get("AFFECTED", 0)
+                not_affected = summary.get("NOT AFFECTED", 0)
+                unable = summary.get("UNABLE TO VALIDATE", 0)
+
+                results.append({
+                    "technology": technology,
+                    "method": "PLAN_B_GEMINI",
+                    "status": "SUCCESS",
+                    "cpe": None,
+                    "cve_count": len(cves),
+                    "affected": affected,
+                    "not_affected": not_affected,
+                    "unable": unable
+                })
+
+            else:
+
+                results.append({
+                    "technology": technology,
+                    "method": method,
+                    "status": "UNKNOWN_METHOD",
+                    "cpe": cpe,
+                    "cve_count": len(cves),
+                    "affected": 0,
+                    "not_affected": 0,
+                    "unable": 0
                 })
 
         except Exception as e:
 
-            print("\nERROR:")
+            print("\nREGRESSION TEST ERROR:")
             print(str(e))
 
             results.append({
                 "technology": technology,
+                "method": "UNKNOWN",
                 "status": "ERROR",
                 "cpe": None,
-                "cve_count": 0
+                "cve_count": 0,
+                "affected": 0,
+                "not_affected": 0,
+                "unable": 0
             })
 
     # ======================================================
@@ -71,41 +162,107 @@ def run_regression_test():
     # ======================================================
 
     print("\n\n")
-    print("=" * 70)
+    print("=" * 120)
     print("ASTRA REGRESSION TEST SUMMARY")
-    print("=" * 70)
+    print("=" * 120)
 
     print(
-        f"{'Technology':35} "
-        f"{'Status':10} "
-        f"{'CVEs':8}"
+        f"{'Technology':32} "
+        f"{'Method':20} "
+        f"{'Status':15} "
+        f"{'CVEs':7} "
+        f"{'Affected':10} "
+        f"{'Not Affected':14} "
+        f"{'Unable':8}"
     )
 
-    print("-" * 70)
+    print("-" * 120)
 
     for result in results:
 
-        technology = result["technology"]
-        status = result["status"]
-        cve_count = result["cve_count"]
-
         print(
-            f"{technology:35} "
-            f"{status:10} "
-            f"{cve_count:<8}"
+            f"{result['technology']:32} "
+            f"{result['method']:20} "
+            f"{result['status']:15} "
+            f"{result['cve_count']:<7} "
+            f"{result['affected']:<10} "
+            f"{result['not_affected']:<14} "
+            f"{result['unable']:<8}"
         )
+
+    print("-" * 120)
+
+    # ======================================================
+    # STATISTICS
+    # ======================================================
+
+    total = len(results)
+
+    success_count = sum(
+        1 for r in results
+        if r["status"] == "SUCCESS"
+    )
+
+    plan_a_count = sum(
+        1 for r in results
+        if r["method"] == "PLAN_A_CPE"
+    )
+
+    plan_b_count = sum(
+        1 for r in results
+        if r["method"] == "PLAN_B_GEMINI"
+    )
+
+    failed_count = sum(
+        1 for r in results
+        if r["status"] == "FAILED"
+    )
+
+    error_count = sum(
+        1 for r in results
+        if r["status"] in ["ERROR", "NVD_ERROR"]
+    )
+
+    unknown_count = sum(
+        1 for r in results
+        if r["status"] == "UNKNOWN_METHOD"
+    )
+
+    total_cves = sum(
+        r["cve_count"] for r in results
+    )
+
+    total_affected = sum(
+        r["affected"] for r in results
+    )
+
+    total_not_affected = sum(
+        r["not_affected"] for r in results
+    )
+
+    total_unable = sum(
+        r["unable"] for r in results
+    )
+
+    print("\n")
+    print("=" * 70)
+    print("REGRESSION STATISTICS")
+    print("=" * 70)
+
+    print(f"Total Technologies : {total}")
+    print(f"Successful Scans   : {success_count}")
+    print(f"Plan A (CPE)       : {plan_a_count}")
+    print(f"Plan B (Gemini)    : {plan_b_count}")
+    print(f"Failed             : {failed_count}")
+    print(f"Errors             : {error_count}")
+    print(f"Unknown Method     : {unknown_count}")
 
     print("-" * 70)
 
-    success_count = sum(
-        1 for result in results
-        if result["status"] == "SUCCESS"
-    )
-
-    failed_count = len(results) - success_count
-
-    print(f"Successful : {success_count}")
-    print(f"Failed     : {failed_count}")
+    print(f"Total CVE Records  : {total_cves}")
+    print(f"AFFECTED           : {total_affected}")
+    print(f"NOT AFFECTED       : {total_not_affected}")
+    print(f"UNABLE TO VALIDATE : {total_unable}")
 
     print("=" * 70)
 

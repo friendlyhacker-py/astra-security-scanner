@@ -26,3 +26,9 @@ Thumbs.db
 reports/
 results/
 *.log
+
+# ASTRA runtime output
+logs/
+reports/
+results/
+*.json
