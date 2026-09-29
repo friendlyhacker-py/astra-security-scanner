@@ -1,73 +1,60 @@
-# ASTRA — AI-Assisted Security Tech Risk Analyst
+# ASTRA — AI Security Tech Risk Analyst
 
-**Tagline:** Know Your Stack. Find Your Risk.
+ASTRA is an experimental Python-based vulnerability research tool that accepts a technology/version string, normalizes its identity with Google Gemini, and searches the NIST National Vulnerability Database (NVD). It includes two scan paths and a multi-technology regression runner.
 
-ASTRA is an experimental Python tool for application-security and vulnerability-management workflows. It accepts a software technology/version, normalizes the product name with Gemini, searches NIST's National Vulnerability Database (NVD), and displays CVE information.
+> **Status:** Experimental / actively developing  
+> **Use:** Authorized defensive security and vulnerability management only.
 
-> Use only for authorized defensive security work. ASTRA is a research/prototype project, not a substitute for vendor advisories or a complete vulnerability-management platform.
+## Features
 
-## Current capabilities
+- Gemini-assisted vendor/product/version normalization.
+- Plan A: NVD CPE discovery followed by CVE retrieval for the selected CPE.
+- Plan B: when no CPE match is found, NVD keyword discovery followed by Gemini-based candidate validation.
+- OpenJDK alternate keyword lookup (`JDK {version}`) when the initial OpenJDK keyword search yields no candidates.
+- CVE IDs, severity/CVSS data where available, descriptions, and NVD links.
+- Scan logging and a regression runner with aggregate counts and elapsed runtime.
 
-- Gemini-assisted technology normalization (vendor, product, version, confidence).
-- Deterministic product-name mappings for supported technologies.
-- NVD CPE lookup (Plan A) and CVE retrieval for the selected CPE.
-- If CPE lookup returns no matches, Plan B performs an NVD keyword search and uses Gemini to classify candidates as `AFFECTED`, `NOT AFFECTED`, or `UNABLE TO VALIDATE`.
-- Console output and local logs for scan/validation results.
-- A regression runner and basic normalizer test file.
-
-**Important current implementation note:** `keyword_generator.py` is a standalone keyword-generation experiment. The current `astra_scan.py` Plan B calls `validate_technology()` from `gemini_keyword_validator.py`, which currently searches NVD with one combined `technology + version` keyword. The multi-keyword generator is not yet wired into the end-to-end scanner.
-
-## Workflow
+## Scan flow
 
 ```text
-Technology + installed version
-             |
-             v
-    Gemini normalization
-             |
-             v
-   Product identity mapping
-             |
-             v
-      NVD CPE lookup
-        /       \
-  CPE found    No CPE result
-      |             |
-      v             v
- NVD CVE API   NVD keyword search
-      |             |
-      v             v
- Display CVEs   Fetch CVE details + NVD version criteria
-                    |
-                    v
-              Gemini validation
-                    |
-                    v
-        AFFECTED / NOT AFFECTED /
-             UNABLE TO VALIDATE
+Technology + version
+        |
+        v
+Gemini normalization
+        |
+        v
+NVD CPE lookup
+   |             |
+ CPE found    No CPE match
+   |             |
+   v             v
+CVE lookup    NVD keyword search
+                 |
+                 v
+          Gemini validation
 ```
 
-A keyword match is only a discovery result; it does not prove that an installed version is affected. Treat `UNABLE TO VALIDATE` as unresolved, not as safe or vulnerable.
+Plan A reports CVEs returned by the selected CPE lookup. A CPE-associated CVE count is not, by itself, proof that a particular installed build or deployment is exploitable; verify applicability and vendor advisories before treating a result as a confirmed vulnerability. Plan B statuses are model-assisted classifications and should also be reviewed.
 
-## Repository structure
+## Project structure
 
 ```text
 astra-security-scanner-github/
-├── astra_scan.py                 # Main scanner; Plan A and Plan B orchestration
-├── normalize_product.py          # Gemini product normalization
-├── product_mapping.py            # Deterministic vendor/product aliases
-├── nvd_cpe.py                    # NVD CPE API lookup
-├── cve_search.py                 # NVD CVE search by CPE
-├── nvd_keyword_search.py         # NVD CVE keyword search
-├── gemini_keyword_validator.py   # Plan B CVE detail retrieval and validation
-├── keyword_generator.py          # Standalone Gemini keyword-generation experiment
-├── nvd_keyword_validator.py      # Additional keyword validation utility
-├── vulnerability_validator.py    # Validation utility
-├── regress_test.py               # Multi-technology regression runner
-├── tests/                        # Test/example scripts
-├── tools/                        # Experimental browser utility
+├── astra_scan.py
+├── normalize_product.py
+├── product_mapping.py
+├── nvd_cpe.py
+├── cve_search.py
+├── nvd_keyword_search.py
+├── gemini_keyword_validator.py
+├── nvd_keyword_validator.py
+├── keyword_generator.py
+├── vulnerability_validator.py
+├── regress_test.py
+├── tests/
+├── tools/
 ├── requirements.txt
-├── .env.example                  # Environment variable names only
+├── .env.example
 ├── .gitignore
 ├── LICENSE
 └── README.md
@@ -75,97 +62,81 @@ astra-security-scanner-github/
 
 ## Requirements
 
-- Python 3.10 or newer recommended.
-- Internet connection.
-- Gemini API key for normalization and Gemini-based validation.
-- NVD API key is optional, but recommended for higher NVD request limits.
+- Python 3.9+ (use a currently supported Python release where possible)
+- Internet access
+- Google Gemini API key
+- Optional NVD API key for improved NVD rate limits
 
 ## Installation
 
-### Windows PowerShell
-
-```powershell
+```bash
 git clone https://github.com/<your-username>/astra-security-scanner.git
 cd astra-security-scanner
-py -m venv .venv
+python -m venv .venv
+```
+
+Activate the environment:
+
+**Windows PowerShell**
+```powershell
 .venv\Scripts\Activate.ps1
-py -m pip install --upgrade pip
-pip install -r requirements.txt
 ```
 
-### Linux / macOS
-
+**Linux/macOS**
 ```bash
-git clone https://github.com/<your-username>/astra-security-scanner.git
-cd astra-security-scanner
-python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install --upgrade pip
+```
+
+Install dependencies and configure credentials:
+
+```bash
 pip install -r requirements.txt
 ```
 
-## Configure API keys
+Copy `.env.example` to `.env` and fill in `GEMINI_API_KEY`; optionally add `NVD_API_KEY`. The application reads environment variables. If using a `.env` file, ensure your shell or your preferred environment loader exports those variables before running the scripts.
 
-The Python modules read keys from environment variables. Set them in your shell before running the scanner.
-
-### Windows PowerShell
-
+PowerShell example:
 ```powershell
-$env:GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
-$env:NVD_API_KEY="YOUR_NVD_API_KEY"  # Optional
+$env:GEMINI_API_KEY="your_gemini_api_key"
+$env:NVD_API_KEY="your_nvd_api_key"  # optional
 ```
 
-### Linux / macOS
-
+Bash example:
 ```bash
-export GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
-export NVD_API_KEY="YOUR_NVD_API_KEY"  # Optional
+export GEMINI_API_KEY="your_gemini_api_key"
+export NVD_API_KEY="your_nvd_api_key"  # optional
 ```
 
-`.env.example` documents the variable names. The current code does not automatically load a `.env` file, so shell environment variables must be set unless you add a dotenv loader yourself.
+**Never commit `.env`, API keys, tokens, or private data.**
 
-**Never commit real API keys, tokens, `.env` files, scan logs, or customer data.** If a key was ever committed or shared, revoke/rotate it.
+## Usage
 
-## Run ASTRA
+Run the interactive scanner:
 
 ```bash
 python astra_scan.py
 ```
 
-Enter a technology and version when prompted, for example:
-
-```text
-Enter technology and version (example: PostgreSQL 15.17): Tomcat 10.1.59
-```
-
-The scanner first attempts the CPE workflow. If the NVD CPE request itself fails, it returns an NVD error; it does not treat a request failure as a no-match and switch to Plan B.
-
-## Run supporting scripts
+Run the multi-technology regression test:
 
 ```bash
-python keyword_generator.py
-python nvd_keyword_search.py
 python regress_test.py
 ```
 
-`keyword_generator.py` requires `GEMINI_API_KEY`. It may return only the original technology/version keyword when the Gemini call fails. Gemini API availability and quotas are controlled by Google; a 503 response is a service-availability error and is not, by itself, proof that your quota is exhausted.
+The regression list currently includes Apache HTTPD, RabbitMQ, Erlang, OpenJDK, Eclipse Temurin, Python, PostgreSQL, Tomcat, Spring Boot, and Angular. It prints per-technology method/status/CVE counts, aggregate Plan A/Plan B and validation counts, and total elapsed time in seconds and minutes. Network/API latency affects runtime and results.
 
-## Output and logs
+## Interpretation notes
 
-The scanner creates a `logs/` directory at runtime. Logs and generated validation JSON are intentionally excluded from this repository package to avoid publishing environment-specific scan output.
-
-## Accuracy and limitations
-
-- NVD search coverage depends on product naming, CPE records, API results, and pagination behavior.
-- The current CPE flow selects the first CPE returned by the lookup; verify product identity and version applicability before relying on findings.
-- Plan B uses keyword search for candidate discovery. Gemini classifications are AI-assisted and should be reviewed against NVD records and vendor advisories.
-- CVSS severity is not the same as exploitability in a particular deployment.
-- Network errors, API limits, model availability, and incomplete metadata can affect results.
+- NVD records and CPE matching can have coverage or mapping gaps.
+- The current CPE selection logic should be reviewed before production use; matching the first returned CPE may not always represent the intended distribution/product build.
+- Plan A's regression tally labels CPE-returned records as `AFFECTED` to match the current project reporting convention; that label is a scanner tally convention, not independent proof of version applicability.
+- Plan B's Gemini classification is model-assisted, may be uncertain, and requires analyst review.
+- NVD and Gemini services may impose rate limits, change response formats, or be temporarily unavailable.
 
 ## Security and responsible use
 
-Use ASTRA only for systems and software inventories you are authorized to assess. Do not include secrets, private customer data, internal hostnames, or sensitive infrastructure details in prompts or published logs.
+Use ASTRA only for authorized defensive assessment. Do not scan systems or applications without permission. Avoid publishing internal scan logs, customer details, secrets, or sensitive asset information.
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+MIT. See [LICENSE](LICENSE).

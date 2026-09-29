@@ -1,4 +1,5 @@
 
+from ast import keyword
 import os
 import json
 import time
@@ -174,6 +175,21 @@ Rules:
 3. UNABLE TO VALIDATE:
    Evidence is missing, ambiguous, incomplete, or insufficient.
 
+Java cross-vendor applicability:
+
+- OpenJDK and Oracle JDK share upstream Java code.
+- Do not reject a Java CVE merely because its description
+  mentions Oracle Java SE or Oracle JDK instead of OpenJDK.
+- For ASTRA's current assessment policy, if the installed
+  OpenJDK version exactly matches an Oracle Java SE version
+  explicitly listed as affected, classify it as AFFECTED.
+- Apply this rule consistently to all Java components,
+  including Libraries and Security.
+- Do not return UNABLE TO VALIDATE solely because the
+  CVE uses Oracle product naming.
+- Do not assume that every Oracle JDK vulnerability affects
+  every OpenJDK distribution without matching version evidence.
+
 Do not assume that a keyword match proves vulnerability.
 Do not invent version ranges.
 Do not treat missing NVD configurations as proof of safety.
@@ -252,15 +268,28 @@ def validate_technology(technology, version):
     candidates = search_cves_by_keyword(keyword)
 
     if candidates is None:
+       print("[ERROR] NVD keyword search failed.")
+       return None
 
-        print("[ERROR] NVD keyword search failed.")
-        return None
+    # OpenJDK-specific fallback
+    if not candidates and technology.lower().strip() == "openjdk":
+
+       fallback_keyword = f"JDK {version}"
+
+       print(
+           f"[INFO] No CVEs found for '{keyword}'. "
+           f"Trying fallback: '{fallback_keyword}'"
+       )
+
+       candidates = search_cves_by_keyword(fallback_keyword)
+
+       if candidates is None:
+           print("[ERROR] NVD fallback keyword search failed.")
+           return None
 
     if not candidates:
-
-        print("[INFO] No CVEs found.")
-
-        return []
+       print("[INFO] No CVEs found after keyword searches.")
+       return []
 
     print(f"[INFO] Candidate CVEs: {len(candidates)}")
 

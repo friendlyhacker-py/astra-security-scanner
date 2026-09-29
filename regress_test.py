@@ -1,6 +1,5 @@
-
 from astra_scan import scan_technology
-
+import time
 
 # ==========================================================
 # ASTRA REGRESSION TEST
@@ -32,7 +31,7 @@ def run_regression_test():
     print("=" * 100)
 
     results = []
-
+    start_time = time.perf_counter()
     for index, technology in enumerate(TEST_TECHNOLOGIES, start=1):
 
         print("\n")
@@ -44,10 +43,6 @@ def run_regression_test():
         try:
 
             result = scan_technology(technology)
-
-            # --------------------------------------------------
-            # SCAN RETURNED NOTHING
-            # --------------------------------------------------
 
             if result is None:
 
@@ -68,10 +63,6 @@ def run_regression_test():
             scan_status = result.get("status", "UNKNOWN")
             cpe = result.get("cpe")
             cves = result.get("cves", [])
-
-            # --------------------------------------------------
-            # NVD / VALIDATION ERROR
-            # --------------------------------------------------
 
             if scan_status in ["ERROR", "NVD_ERROR"]:
 
@@ -94,13 +85,15 @@ def run_regression_test():
 
             if method == "CPE":
 
+                cve_count = len(cves)
+
                 results.append({
                     "technology": technology,
                     "method": "PLAN_A_CPE",
                     "status": "SUCCESS",
                     "cpe": cpe,
-                    "cve_count": len(cves),
-                    "affected": 0,
+                    "cve_count": cve_count,
+                    "affected": cve_count,
                     "not_affected": 0,
                     "unable": 0
                 })
@@ -265,6 +258,10 @@ def run_regression_test():
     print(f"UNABLE TO VALIDATE : {total_unable}")
 
     print("=" * 70)
+    end_time = time.perf_counter()
+    total_time = end_time - start_time
+    print(f"\nTotal Regression Test Time: {total_time:.2f} seconds")
+    print(f"Total Regression Test Time: {total_time / 60:.2f} minutes")
 
 
 # ==========================================================

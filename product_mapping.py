@@ -192,7 +192,7 @@ PRODUCT_MAPPINGS = {
     # ------------------------------------------------------
 
     "angular": {
-        "vendor": "google",
+        "vendor": "angular",
         "product": "angular"
     },
 
